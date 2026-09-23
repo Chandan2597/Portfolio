@@ -196,7 +196,7 @@ const revObs = new IntersectionObserver(entries => {
 revEls.forEach(el => revObs.observe(el));
 
 // ── Typewriter ────────────────────────────────────────────────
-const roles = ['Assistant Professor', 'Certified Data Science Professional', 'AI/ML Enthusiast'];
+const roles = ['Python/Django', 'AI/ML Enthusiast'];
 const typedEl = document.getElementById('typed-role');
 let ri = 0, ci = 0, deleting = false;
 function type() {
