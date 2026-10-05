@@ -5,9 +5,9 @@
 // ── Theme ────────────────────────────────────────────────────
 const html = document.documentElement;
 const themeBtn = document.getElementById('theme-btn');
-html.setAttribute('data-theme', localStorage.getItem('theme') || 'dark');
+html.setAttribute('data-theme', localStorage.getItem('theme') || 'light');
 themeBtn.addEventListener('click', () => {
-  const t = html.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+  const t = html.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
   html.setAttribute('data-theme', t);
   localStorage.setItem('theme', t);
 });
@@ -29,132 +29,6 @@ document.addEventListener('mousemove', e => { mx = e.clientX; my = e.clientY; })
   requestAnimationFrame(animCursor);
 })();
 
-// ── Background canvas — flowing particle constellation ────────
-const canvas = document.getElementById('bg-canvas');
-const ctx = canvas.getContext('2d');
-let W, H, particles = [], mouse = { x: -9999, y: -9999 }, bgT = 0;
-
-const PARTICLE_COUNT = 110;
-const CONNECT_DIST = 155;
-const MOUSE_DIST = 180;
-const MOUSE_FORCE = 55;
-
-function resize() {
-  W = canvas.width = window.innerWidth;
-  H = canvas.height = window.innerHeight;
-  spawnParticles();
-}
-
-function spawnParticles() {
-  particles = [];
-  for (let i = 0; i < PARTICLE_COUNT; i++) {
-    const speed = 0.18 + Math.random() * 0.28;
-    const angle = Math.random() * Math.PI * 2;
-    particles.push({
-      x: Math.random() * W,
-      y: Math.random() * H,
-      vx: Math.cos(angle) * speed,
-      vy: Math.sin(angle) * speed,
-      r: 0.8 + Math.random() * 1.6,
-      hue: 240 + Math.random() * 50,   // violet→cyan range
-      phase: Math.random() * Math.PI * 2,
-      wobble: 0.4 + Math.random() * 0.6
-    });
-  }
-}
-
-window.addEventListener('resize', resize);
-window.addEventListener('mousemove', e => { mouse.x = e.clientX; mouse.y = e.clientY; });
-resize();
-
-function drawBg() {
-  ctx.clearRect(0, 0, W, H);
-  bgT += 0.012;
-  const isDark = html.getAttribute('data-theme') !== 'light';
-
-  // ── Update positions ──────────────────────────────────────
-  particles.forEach(p => {
-    // Gentle sinusoidal wobble
-    p.x += p.vx + Math.sin(bgT * 1.1 + p.phase) * 0.012 * p.wobble;
-    p.y += p.vy + Math.cos(bgT * 0.9 + p.phase) * 0.012 * p.wobble;
-
-    // Soft wall wrap with fade-in
-    if (p.x < -20) p.x = W + 20;
-    if (p.x > W + 20) p.x = -20;
-    if (p.y < -20) p.y = H + 20;
-    if (p.y > H + 20) p.y = -20;
-
-    // Mouse attraction — particles gently drift toward cursor
-    const mdx = mouse.x - p.x;
-    const mdy = mouse.y - p.y;
-    const md = Math.sqrt(mdx * mdx + mdy * mdy);
-    if (md < MOUSE_DIST && md > 1) {
-      const f = (1 - md / MOUSE_DIST) * MOUSE_FORCE * 0.0006;
-      p.vx += mdx / md * f;
-      p.vy += mdy / md * f;
-    }
-
-    // Speed clamp
-    const spd = Math.sqrt(p.vx * p.vx + p.vy * p.vy);
-    if (spd > 0.65) { p.vx *= 0.65 / spd; p.vy *= 0.65 / spd; }
-    if (spd < 0.12) { p.vx *= 1.04; p.vy *= 1.04; }
-  });
-
-  // ── Draw connections ──────────────────────────────────────
-  const baseAlpha = isDark ? 0.55 : 0.35;
-  for (let i = 0; i < particles.length; i++) {
-    const a = particles[i];
-    for (let j = i + 1; j < particles.length; j++) {
-      const b = particles[j];
-      const dx = a.x - b.x, dy = a.y - b.y;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      if (dist < CONNECT_DIST) {
-        const strength = 1 - dist / CONNECT_DIST;
-        // Near-mouse lines glow brighter
-        const mDistA = Math.hypot(a.x - mouse.x, a.y - mouse.y);
-        const glow = mDistA < MOUSE_DIST ? (1 - mDistA / MOUSE_DIST) * 0.6 : 0;
-        const alpha = baseAlpha * (0.12 + strength * 0.7 + glow);
-        const hue = (a.hue + b.hue) / 2;
-        const sat = isDark ? 72 : 60;
-        const lit = isDark ? 68 : 45;
-
-        ctx.beginPath();
-        ctx.moveTo(a.x, a.y);
-        ctx.lineTo(b.x, b.y);
-        ctx.strokeStyle = `hsla(${hue},${sat}%,${lit}%,${Math.min(alpha, 0.55)})`;
-        ctx.lineWidth = 0.6 + strength * 0.6;
-        ctx.stroke();
-      }
-    }
-  }
-
-  // ── Draw particles ────────────────────────────────────────
-  particles.forEach(p => {
-    const mDist = Math.hypot(p.x - mouse.x, p.y - mouse.y);
-    const glow = mDist < MOUSE_DIST ? (1 - mDist / MOUSE_DIST) : 0;
-    const pulse = 0.7 + 0.3 * Math.sin(bgT * 2.2 + p.phase);
-    const alpha = isDark
-      ? 0.5 + 0.35 * pulse + glow * 0.5
-      : 0.35 + 0.25 * pulse + glow * 0.4;
-    const radius = p.r * (1 + glow * 0.8);
-
-    // Outer glow ring for lit particles
-    if (glow > 0.2) {
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, radius * 3.5, 0, Math.PI * 2);
-      ctx.fillStyle = `hsla(${p.hue},78%,68%,${glow * 0.08})`;
-      ctx.fill();
-    }
-
-    ctx.beginPath();
-    ctx.arc(p.x, p.y, radius, 0, Math.PI * 2);
-    ctx.fillStyle = `hsla(${p.hue},78%,${isDark ? 72 : 52}%,${alpha})`;
-    ctx.fill();
-  });
-
-  requestAnimationFrame(drawBg);
-}
-drawBg();
 
 // ── Navbar scroll ─────────────────────────────────────────────
 const navbar = document.getElementById('navbar');
